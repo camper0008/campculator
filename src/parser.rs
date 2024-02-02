@@ -4,10 +4,16 @@ pub enum Expr {
     Int(i64),
     Float(f64),
     Id(String),
-    Fn(Box<Expr>, Box<Expr>),
-    Eq(Box<Expr>, Box<Expr>),
-    MulDiv(Box<Expr>, Box<Expr>),
-    PlusMinus(Box<Expr>, Box<Expr>),
+    Binary(BinaryVariant, Box<Expr>, Box<Expr>),
+}
+
+pub enum BinaryVariant {
+    Fn,
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Eq,
 }
 
 pub struct Error {
@@ -79,7 +85,11 @@ impl<'text> Parser<'text> {
                 let id = self.eat(TokenVariant::Id)?;
                 let id = Expr::Id(self.text[id.from..=id.to].to_string());
                 let expr = self.parse_expr()?;
-                return Ok(Expr::Fn(Box::new(id), Box::new(expr)));
+                return Ok(Expr::Binary(
+                    BinaryVariant::Fn,
+                    Box::new(id),
+                    Box::new(expr),
+                ));
             }
 
             TokenVariant::Add
@@ -132,29 +142,55 @@ impl<'text> Parser<'text> {
     }
 
     fn parse_eq(&mut self) -> Result<Expr, Error> {
-        let statement_0 = self.parse_add_sub()?;
+        let left = self.parse_add_sub()?;
         if self.current.is_none() {
-            return Ok(statement_0);
+            return Ok(left);
         }
         let _ = self.eat(TokenVariant::Equal)?;
-        let statement_1 = self.parse_add_sub()?;
-        Ok(Expr::Eq(Box::new(statement_0), Box::new(statement_1)))
+        let right = self.parse_add_sub()?;
+        Ok(Expr::Binary(
+            BinaryVariant::Eq,
+            Box::new(left),
+            Box::new(right),
+        ))
     }
 
     fn parse_add_sub(&mut self) -> Result<Expr, Error> {
         let mut left = self.parse_mul_div()?;
-        loop {}
-        Ok(Expr::AddSub(Box::new(statement_0), Box::new(statement_1)))
+        loop {
+            let variant = self.current.as_ref().map(|v| &v.variant).cloned();
+            if !matches!(variant, Some(TokenVariant::Add | TokenVariant::Sub)) {
+                break Ok(left);
+            }
+            self.step();
+            let right = self.parse_mul_div()?;
+            if matches!(variant, Some(TokenVariant::Add)) {
+                left = Expr::Binary(BinaryVariant::Add, Box::new(left), Box::new(right))
+            } else {
+                left = Expr::Binary(BinaryVariant::Sub, Box::new(left), Box::new(right))
+            }
+        }
     }
 
     fn parse_mul_div(&mut self) -> Result<Expr, Error> {
-        let statement_0 = self.parse_add_sub()?;
-        if self.current.is_none() {
-            return Ok(statement_0);
+        let mut left = self.parse_unary()?;
+        loop {
+            let variant = self.current.as_ref().map(|v| &v.variant).cloned();
+            if !matches!(variant, Some(TokenVariant::Mul | TokenVariant::Div)) {
+                break Ok(left);
+            }
+            self.step();
+            let right = self.parse_unary()?;
+            if matches!(variant, Some(TokenVariant::Mul)) {
+                left = Expr::Binary(BinaryVariant::Mul, Box::new(left), Box::new(right))
+            } else {
+                left = Expr::Binary(BinaryVariant::Div, Box::new(left), Box::new(right))
+            }
         }
-        let equal = self.eat(TokenVariant::Equal)?;
-        let statement_1 = self.parse_add_sub()?;
-        Ok(Expr::MulDiv(Box::new(statement_0), Box::new(statement_1)))
+    }
+
+    fn parse_unary(&mut self) -> Result<Expr, Error> {
+        todo!()
     }
 
     fn step(&mut self) {
