@@ -1,0 +1,31 @@
+
+expr -> eq
+
+eq -> plusminus ("=" plusminus):?
+
+plusminus -> muldiv (("+"|"-") muldiv):*
+
+muldiv -> unary (("*"|"/") unary):*
+
+unary ->  ("-"|"+") unary
+            | pow
+
+pow -> call ("^" unary):?
+
+call -> operand ("(" expr ("," expr):* ",":? ")"):*
+
+operand -> int 
+         | float
+         | id
+         | "(" expr ")"
+         | "fn" id "=>" expr
+
+
+
+parse_subbies()
+    let mut left = parse_next();
+    loop
+        if current = "+"
+            step
+            let right = parse_next
+            left = Subbie { left, right }
